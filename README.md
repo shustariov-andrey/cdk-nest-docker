@@ -1,14 +1,8 @@
-# Welcome to your CDK TypeScript project!
+# Summary
+Example of AWS CDK Stack, which establishes infrastructure and application environments (dev and prod) for GitFlow-based development process.
+Deployable application is expected to have Dockerfile
 
-This is a blank project for TypeScript development with CDK.
-
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
-
-## Useful commands
-
- * `npm run build`   compile typescript to js
- * `npm run watch`   watch for changes and compile
- * `npm run test`    perform the jest unit tests
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk synth`       emits the synthesized CloudFormation template
+# Usage
+2. First bootstrap deploy `ImageBuilderStack` with GithubToken cfn param
+3. Trigger CodeBuild project (or just push to the target repo)
+4. Once image with required tag is present in ECR - deploy corresponding application stack

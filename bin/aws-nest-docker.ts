@@ -1,21 +1,34 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from '@aws-cdk/core';
-import { AwsNestDockerStack } from '../lib/aws-nest-docker-stack';
+import { ECSEnvironmentStack } from '../lib/ecs-environment-stack';
+import { ImageBuilderStack } from '../lib/image-builder-stack';
 
 const app = new cdk.App();
-new AwsNestDockerStack(app, 'AwsNestDockerStack', {
-  /* If you don't specify 'env', this stack will be environment-agnostic.
-   * Account/Region-dependent features and context lookups will not work,
-   * but a single synthesized template can be deployed anywhere. */
-
-  /* Uncomment the next line to specialize this stack for the AWS Account
-   * and Region that are implied by the current CLI configuration. */
-  // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
-
-  /* Uncomment the next line if you know exactly what Account and Region you
-   * want to deploy the stack to. */
-  // env: { account: '123456789012', region: 'us-east-1' },
-
-  /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
+new ECSEnvironmentStack(app, 'AwsNestDockerStack', {
+  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+  appName: 'NestApp',
+  imageTag: 'prod',
+  vpcCidr: '10.0.0.0/16',
+  ecrRepoName: 'nest-cluster-repo',
 });
+new ECSEnvironmentStack(app, 'AwsNestDockerDevStack', {
+  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+  appName: 'NestApp',
+  imageTag: 'dev',
+  vpcCidr: '10.1.0.0/16',
+  ecrRepoName: 'nest-cluster-repo',
+});
+new ImageBuilderStack(app, 'ImageBuilderStack', {
+  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
+  appName: 'NestApp',
+  repoName: 'nest-cluster-repo',
+  gitOwner: 'shustariov-andrey',
+  gitRepo: 'nest-docker-boilerplate',
+  branchMapping: {
+    'master': 'prod',
+    'develop': 'dev',
+    '^release/.*': 'uat'
+  }
+});
+
