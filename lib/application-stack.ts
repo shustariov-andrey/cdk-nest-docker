@@ -1,42 +1,121 @@
 import { CfnOutput, Construct, Duration, Stack, StackProps, Tags } from '@aws-cdk/core';
+import { Repository, TagStatus } from '@aws-cdk/aws-ecr';
+import { BuildSpec, EventAction, FilterGroup, LinuxBuildImage, Project, Source } from '@aws-cdk/aws-codebuild';
+import { DockerImageAsset } from '@aws-cdk/aws-ecr-assets';
+import * as path from 'path';
+import { DockerImageName, ECRDeployment } from 'cdk-ecr-deployment';
 import { SubnetType, Vpc } from '@aws-cdk/aws-ec2';
 import { AwsLogDriver, Cluster, ContainerImage, FargateTaskDefinition, Protocol } from '@aws-cdk/aws-ecs';
+import { RetentionDays } from '@aws-cdk/aws-logs';
 import { Effect, PolicyStatement, Role, ServicePrincipal } from '@aws-cdk/aws-iam';
 import { ApplicationLoadBalancedFargateService } from '@aws-cdk/aws-ecs-patterns';
-import { Repository } from '@aws-cdk/aws-ecr';
 import { Artifact, ArtifactPath, Pipeline } from '@aws-cdk/aws-codepipeline';
 import { CodeBuildAction, EcrSourceAction, EcsDeployAction } from '@aws-cdk/aws-codepipeline-actions';
-import { BuildSpec, LinuxBuildImage, Project } from '@aws-cdk/aws-codebuild';
 import { Rule } from '@aws-cdk/aws-events';
 import { CodePipeline } from '@aws-cdk/aws-events-targets';
-import { RetentionDays } from '@aws-cdk/aws-logs';
 
-interface ECSEnvironmentStackProps extends StackProps {
-  appName: string;
-  imageTag: string;
-  ecrRepoName: string
-  vpcCidr: string;
+interface ApplicationStackProps extends StackProps {
+  branchName: string;
 }
 
-export class ECSEnvironmentStack extends Stack {
-  constructor(scope: Construct, id: string, props: ECSEnvironmentStackProps) {
+export class ApplicationStack extends Stack {
+  constructor(scope: Construct, id: string, props: ApplicationStackProps) {
     super(scope, id, props);
-    const appName = props.appName;
-    const imageTag = props.imageTag;
-    const ecrRepoName = props.ecrRepoName;
-    const vpcCidr = props.vpcCidr;
+
+    const appName = 'NestApp';
+    const repoName = 'nest-app';
+    const gitOwner = 'shustariov-andrey';
+    const gitRepo = 'nest-docker-boilerplate';
+    const branchName = props.branchName;
+
+    const ecrRepository = new Repository(this, `${appName}EcrRepository`, {
+      repositoryName: repoName,
+      lifecycleRules: [{
+        maxImageAge: Duration.days(30),
+        rulePriority: 1,
+        tagStatus: TagStatus.ANY,
+        description: 'Expire images in 30 days'
+      }]
+    });
+
+    const stubImage = new DockerImageAsset(this, 'StubImage', {
+      directory: path.join(__dirname, '../images/stub-image'),
+    });
+
+    new ECRDeployment(this, 'StubImageDeployment', {
+      src: new DockerImageName(stubImage.imageUri),
+      dest: new DockerImageName(`${ecrRepository.repositoryUri}:latest`),
+    });
+
+    // const githubToken = new CfnParameter(this, 'GithubToken', {
+    //   type: 'String',
+    // });
+
+    // new GitHubSourceCredentials(this, `${appName}GitHubCredentials`, {
+    //   accessToken: SecretValue.plainText(githubToken.valueAsString),
+    // });
+
+    const gitHubSource = Source.gitHub({
+      owner: gitOwner,
+      repo: gitRepo,
+      webhook: true,
+      webhookFilters: [
+        FilterGroup.inEventOf(EventAction.PUSH).andBranchIs(branchName)
+      ],
+    });
+
+    new Project(this, `${appName}BuildProject`, {
+      projectName: `${appName}BuildProject`,
+      source: gitHubSource,
+      environment: {
+        buildImage: LinuxBuildImage.STANDARD_5_0,
+        privileged: true
+      },
+      environmentVariables: {
+        IMAGE_NAME: {
+          value: ecrRepository.repositoryName
+        },
+        ECR_REPO_URI: {
+          value: ecrRepository.repositoryUri
+        }
+      },
+      buildSpec: BuildSpec.fromObject({
+        version: '0.2',
+        env: {
+          shell: 'bash'
+        },
+        phases: {
+          pre_build: {
+            commands: [
+              'export TAG=${CODEBUILD_RESOLVED_SOURCE_VERSION}',
+              'export BUILD_NUMBER=${CODEBUILD_BUILD_NUMBER}',
+              'env'
+            ]
+          },
+          build: {
+            commands: [
+              'docker build --build-arg BUILD_NUMBER=$BUILD_NUMBER -t $IMAGE_NAME:$TAG .',
+              'docker tag $IMAGE_NAME:$TAG $ECR_REPO_URI:$TAG',
+              'docker tag $IMAGE_NAME:$TAG $ECR_REPO_URI:$BUILD_NUMBER',
+              'docker tag $IMAGE_NAME:$TAG $ECR_REPO_URI:latest',
+              '(aws ecr get-login-password | docker login --username AWS --password-stdin $ECR_REPO_URI)',
+              'docker push $ECR_REPO_URI '
+            ]
+          }
+        }
+      })
+    });
 
     Tags.of(this).add('project', appName);
-    Tags.of(this).add('env', imageTag);
 
-    const vpc = new Vpc(this, `${appName}-${imageTag}-Vpc`, {
-      cidr: vpcCidr,
+    const vpc = new Vpc(this, `${appName}-Vpc`, {
+      // cidr: vpcCidr,
       maxAzs: 3,
       natGateways: 0,
     });
-    Tags.of(vpc).add('Name', `${appName}-${imageTag}-Vpc`)
+    Tags.of(vpc).add('Name', `${appName}-Vpc`);
 
-    const clusterName = `${appName}-${imageTag}-Cluster`;
+    const clusterName = `${appName}-Cluster`;
     const cluster = new Cluster(this, clusterName, {
       clusterName,
       vpc,
@@ -72,10 +151,8 @@ export class ECSEnvironmentStack extends Stack {
 
     taskDef.addToExecutionRolePolicy(taskRolePolicy);
 
-    const ecrRepository = Repository.fromRepositoryName(this, `${clusterName}EcrRepository`, ecrRepoName);
-
-    const container = taskDef.addContainer(`${appName}-${imageTag}-Container`, {
-      image: ContainerImage.fromEcrRepository(ecrRepository, imageTag),
+    const container = taskDef.addContainer(`${appName}-Container`, {
+      image: ContainerImage.fromEcrRepository(ecrRepository),
       memoryLimitMiB: 512,
       cpu: 256,
       logging,
@@ -85,7 +162,7 @@ export class ECSEnvironmentStack extends Stack {
       }]
     });
 
-    const serviceName = `${appName}-${imageTag}-Service`;
+    const serviceName = `${appName}-Service`;
     const fargateService = new ApplicationLoadBalancedFargateService(this, serviceName, {
       serviceName: serviceName,
       cluster,
@@ -118,13 +195,12 @@ export class ECSEnvironmentStack extends Stack {
       actionName: 'EcrSource',
       output: sourceOutput,
       repository: ecrRepository,
-      imageTag,
     });
 
     const buildAction = new CodeBuildAction({
       actionName: 'Build',
-      project: new Project(this, `${appName}-${imageTag}-ImageDefinitionsBuilder`, {
-        projectName: `${appName}-${imageTag}-ImageDefinitionsBuilder`,
+      project: new Project(this, `${appName}-ImageDefinitionsBuilder`, {
+        projectName: `${appName}-ImageDefinitionsBuilder`,
         environment: {
           buildImage: LinuxBuildImage.AMAZON_LINUX_2_3,
           privileged: false,
@@ -143,7 +219,7 @@ export class ECSEnvironmentStack extends Stack {
             post_build: {
               commands: [
                 'echo "In Post-Build Stage"',
-                `printf \'[{"name":"${container.containerName}","imageUri":"%s"}]\' $ECR_REPO_URI:${imageTag} > imagedefinitions.json`,
+                `printf \'[{"name":"${container.containerName}","imageUri":"%s"}]\' $ECR_REPO_URI:latest > imagedefinitions.json`,
                 'pwd; ls -al; cat imagedefinitions.json'
               ]
             }
@@ -165,7 +241,7 @@ export class ECSEnvironmentStack extends Stack {
       imageFile: new ArtifactPath(buildOutput, `imagedefinitions.json`)
     });
 
-    const pipelineName = `${serviceName}-${imageTag}-DeployPipeline`;
+    const pipelineName = `${serviceName}-DeployPipeline`;
     const pipeline = new Pipeline(this, pipelineName, {
       pipelineName,
       crossAccountKeys: false,
@@ -190,7 +266,7 @@ export class ECSEnvironmentStack extends Stack {
         source: ['aws.ecr'],
         detail: {
           'action-type': ['PUSH'],
-          'image-tag': [imageTag],
+          'image-tag': ['latest'],
           'repository-name': [ecrRepository.repositoryName],
           result: ['SUCCESS'],
         },
@@ -198,6 +274,6 @@ export class ECSEnvironmentStack extends Stack {
     });
     eventRule.addTarget(new CodePipeline(pipeline));
 
-    new CfnOutput(this, `${appName}-${imageTag}-LoadBalancerDNS`, { value: fargateService.loadBalancer.loadBalancerDnsName });
+    new CfnOutput(this, `${appName}-LoadBalancerDNS`, { value: fargateService.loadBalancer.loadBalancerDnsName });
   }
 }
