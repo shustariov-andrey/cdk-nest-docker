@@ -8,7 +8,7 @@ interface PipelineAppStageProps extends StackProps {
 export class PipelineAppStage extends Stage {
   constructor(scope: Construct, id: string, props: PipelineAppStageProps) {
     super(scope, id, props);
-    new ApplicationStack(this, 'AppStack', {
+    new ApplicationStack(this, 'Env', {
       branchName: props.branchName,
     });
   }

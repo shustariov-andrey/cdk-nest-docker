@@ -4,7 +4,7 @@ import * as cdk from '@aws-cdk/core';
 import { PipelineStack } from '../lib/pipeline-stack';
 
 const app = new cdk.App();
-new PipelineStack(app, 'PipelineStack', {
+new PipelineStack(app, 'NestApp', {
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
 });
 

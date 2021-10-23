@@ -11,7 +11,7 @@ export class PipelineStack extends Stack {
 
     Tags.of(this).add('project', 'NestApp');
 
-    const pipeline = new CodePipeline(this, 'NestAppStackPipeline', {
+    const pipeline = new CodePipeline(this, 'CDKPipeline', {
       synth: new ShellStep('Synth', {
         input: CodePipelineSource.gitHub(`${gitOwner}/${gitRepo}`, 'master', {
           authentication: SecretValue.secretsManager('/NestApp', {
@@ -22,13 +22,13 @@ export class PipelineStack extends Stack {
       })
     });
 
-    new GitHubSourceCredentials(this, `NestAppGitHubCredentials`, {
+    new GitHubSourceCredentials(this, `GitHubCredentials`, {
       accessToken: SecretValue.secretsManager('/NestApp', {
         jsonField: 'github-oauth-token'
       }),
     });
 
-    const prod = new PipelineAppStage(this, 'NestAppProd', {
+    const prod = new PipelineAppStage(this, 'Prod', {
       branchName: 'master'
     });
 
@@ -36,7 +36,7 @@ export class PipelineStack extends Stack {
 
     pipeline.addStage(prod);
 
-    const stg = new PipelineAppStage(this, 'NestAppStaging', {
+    const stg = new PipelineAppStage(this, 'Stg', {
       branchName: 'develop'
     });
 

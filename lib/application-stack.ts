@@ -27,7 +27,7 @@ export class ApplicationStack extends Stack {
     const gitRepo = 'nest-docker-boilerplate';
     const branchName = props.branchName;
 
-    const ecrRepository = new Repository(this, `${appName}EcrRepository`, {
+    const ecrRepository = new Repository(this, 'EcrRepo', {
       lifecycleRules: [{
         maxImageAge: Duration.days(30),
         rulePriority: 1,
@@ -40,7 +40,7 @@ export class ApplicationStack extends Stack {
       directory: path.join(__dirname, '../images/stub-image'),
     });
 
-    new ECRDeployment(this, 'StubImageDeployment', {
+    new ECRDeployment(this, 'StubImageDpl', {
       src: new DockerImageName(stubImage.imageUri),
       dest: new DockerImageName(`${ecrRepository.repositoryUri}:latest`),
     });
@@ -54,7 +54,7 @@ export class ApplicationStack extends Stack {
       ],
     });
 
-    const project = new Project(this, `${appName}BuildProject`, {
+    const project = new Project(this, `ImgBuilder`, {
       source: gitHubSource,
       environment: {
         buildImage: LinuxBuildImage.STANDARD_5_0,
@@ -97,13 +97,13 @@ export class ApplicationStack extends Stack {
 
     ecrRepository.grantPullPush(project.role!);
 
-    const vpc = new Vpc(this, `${appName}-Vpc`, {
+    const vpc = new Vpc(this, `Vpc`, {
       // cidr: vpcCidr,
       maxAzs: 3,
       natGateways: 0,
     });
 
-    const clusterName = `${appName}-Cluster`;
+    const clusterName = `Cluster`;
     const cluster = new Cluster(this, clusterName, {
       vpc,
       containerInsights: true,
@@ -114,7 +114,7 @@ export class ApplicationStack extends Stack {
       logRetention: RetentionDays.ONE_MONTH,
     });
 
-    const taskRole = new Role(this, `${clusterName}TaskRole`, {
+    const taskRole = new Role(this, `ECSTaskRole`, {
       assumedBy: new ServicePrincipal('ecs-tasks.amazonaws.com')
     });
 
@@ -131,13 +131,13 @@ export class ApplicationStack extends Stack {
       ]
     });
 
-    const taskDef = new FargateTaskDefinition(this, `${clusterName}TaskDef`, {
+    const taskDef = new FargateTaskDefinition(this, `TaskDef`, {
       taskRole,
     });
 
     taskDef.addToExecutionRolePolicy(taskRolePolicy);
 
-    const container = taskDef.addContainer(`${appName}-Container`, {
+    const container = taskDef.addContainer(`ECSContainer`, {
       image: ContainerImage.fromEcrRepository(ecrRepository),
       memoryLimitMiB: 512,
       cpu: 256,
@@ -148,7 +148,7 @@ export class ApplicationStack extends Stack {
       }]
     });
 
-    const serviceName = `${appName}-Service`;
+    const serviceName = `ECSService`;
     const fargateService = new ApplicationLoadBalancedFargateService(this, serviceName, {
       cluster,
       taskDefinition: taskDef,
@@ -162,12 +162,12 @@ export class ApplicationStack extends Stack {
     });
 
     const scaling = fargateService.service.autoScaleTaskCount({ maxCapacity: 4 });
-    scaling.scaleOnCpuUtilization(`${serviceName}CpuScaling`, {
+    scaling.scaleOnCpuUtilization(`CpuScaling`, {
       targetUtilizationPercent: 70,
       scaleInCooldown: Duration.seconds(60),
       scaleOutCooldown: Duration.seconds(60)
     });
-    scaling.scaleOnMemoryUtilization(`${serviceName}MemoryScaling`, {
+    scaling.scaleOnMemoryUtilization(`MemScaling`, {
       targetUtilizationPercent: 70,
       scaleInCooldown: Duration.seconds(60),
       scaleOutCooldown: Duration.seconds(60)
@@ -184,7 +184,7 @@ export class ApplicationStack extends Stack {
 
     const buildAction = new CodeBuildAction({
       actionName: 'Build',
-      project: new Project(this, `${appName}-ImageDefinitionsBuilder`, {
+      project: new Project(this, `ImgDefBuilder`, {
         environment: {
           buildImage: LinuxBuildImage.AMAZON_LINUX_2_3,
           privileged: false,
@@ -225,7 +225,7 @@ export class ApplicationStack extends Stack {
       imageFile: new ArtifactPath(buildOutput, `imagedefinitions.json`)
     });
 
-    const pipelineName = `${serviceName}-DeployPipeline`;
+    const pipelineName = `DeployImgOnECS`;
     const pipeline = new Pipeline(this, pipelineName, {
       crossAccountKeys: false,
       restartExecutionOnUpdate: false,
@@ -257,6 +257,6 @@ export class ApplicationStack extends Stack {
     });
     eventRule.addTarget(new CodePipeline(pipeline));
 
-    new CfnOutput(this, `${appName}-LoadBalancerDNS`, { value: fargateService.loadBalancer.loadBalancerDnsName });
+    new CfnOutput(this, `LoadBalancerDNS`, { value: fargateService.loadBalancer.loadBalancerDnsName });
   }
 }
