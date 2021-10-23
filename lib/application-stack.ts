@@ -1,6 +1,14 @@
-import { CfnOutput, Construct, Duration, Stack, StackProps, Tags } from '@aws-cdk/core';
+import { CfnOutput, Construct, Duration, SecretValue, Stack, StackProps, Tags } from '@aws-cdk/core';
 import { Repository, TagStatus } from '@aws-cdk/aws-ecr';
-import { BuildSpec, EventAction, FilterGroup, LinuxBuildImage, Project, Source } from '@aws-cdk/aws-codebuild';
+import {
+  BuildSpec,
+  EventAction,
+  FilterGroup,
+  GitHubSourceCredentials,
+  LinuxBuildImage,
+  Project,
+  Source
+} from '@aws-cdk/aws-codebuild';
 import { DockerImageAsset } from '@aws-cdk/aws-ecr-assets';
 import * as path from 'path';
 import { DockerImageName, ECRDeployment } from 'cdk-ecr-deployment';
@@ -47,13 +55,11 @@ export class ApplicationStack extends Stack {
       dest: new DockerImageName(`${ecrRepository.repositoryUri}:latest`),
     });
 
-    // const githubToken = new CfnParameter(this, 'GithubToken', {
-    //   type: 'String',
-    // });
-
-    // new GitHubSourceCredentials(this, `${appName}GitHubCredentials`, {
-    //   accessToken: SecretValue.plainText(githubToken.valueAsString),
-    // });
+    new GitHubSourceCredentials(this, `${appName}GitHubCredentials`, {
+      accessToken: SecretValue.secretsManager('/NestApp', {
+        jsonField: 'github-oauth-token'
+      }),
+    });
 
     const gitHubSource = Source.gitHub({
       owner: gitOwner,
