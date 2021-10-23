@@ -1,4 +1,4 @@
-import { CfnParameter, Construct, SecretValue, Stack, StackProps } from '@aws-cdk/core';
+import { Construct, SecretValue, Stack, StackProps } from '@aws-cdk/core';
 import { CodePipeline, CodePipelineSource, ShellStep } from '@aws-cdk/pipelines';
 import { PipelineAppStage } from './pipeline-app-stage';
 
@@ -8,22 +8,20 @@ export class PipelineStack extends Stack {
     const gitOwner = 'shustariov-andrey';
     const gitRepo = 'cdk-nest-docker';
 
-    const githubToken = new CfnParameter(this, 'GithubToken', {
-      type: 'String',
-    });
-
     const pipeline = new CodePipeline(this, 'StackPipeline', {
       pipelineName: 'StackPipeline',
       synth: new ShellStep('Synth', {
         input: CodePipelineSource.gitHub(`${gitOwner}/${gitRepo}`, 'master', {
-          authentication: SecretValue.plainText(githubToken.valueAsString)
+          authentication: SecretValue.secretsManager('/NestApp', {
+            jsonField: 'github-oauth-token'
+          })
         }),
         commands: ['npm ci', 'npm run build', 'npx cdk synth']
       })
     });
 
-    pipeline.addStage(new PipelineAppStage(this, 'Prod', {
+    pipeline.addStage(new PipelineAppStage(this, 'NestAppProd', {
       branchName: 'master'
-    }))
+    }));
   }
 }
