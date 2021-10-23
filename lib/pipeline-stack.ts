@@ -23,5 +23,9 @@ export class PipelineStack extends Stack {
     pipeline.addStage(new PipelineAppStage(this, 'NestAppProd', {
       branchName: 'master'
     }));
+
+    pipeline.addStage(new PipelineAppStage(this, 'NestAppStaging', {
+      branchName: 'develop'
+    }));
   }
 }
