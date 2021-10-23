@@ -1,6 +1,7 @@
 import { Construct, SecretValue, Stack, StackProps, Tags } from '@aws-cdk/core';
 import { CodePipeline, CodePipelineSource, ShellStep } from '@aws-cdk/pipelines';
 import { PipelineAppStage } from './pipeline-app-stage';
+import { GitHubSourceCredentials } from '@aws-cdk/aws-codebuild';
 
 export class PipelineStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -8,8 +9,9 @@ export class PipelineStack extends Stack {
     const gitOwner = 'shustariov-andrey';
     const gitRepo = 'cdk-nest-docker';
 
-    const pipeline = new CodePipeline(this, 'StackPipeline', {
-      pipelineName: 'StackPipeline',
+    Tags.of(this).add('project', 'NestApp');
+
+    const pipeline = new CodePipeline(this, 'NestAppStackPipeline', {
       synth: new ShellStep('Synth', {
         input: CodePipelineSource.gitHub(`${gitOwner}/${gitRepo}`, 'master', {
           authentication: SecretValue.secretsManager('/NestApp', {
@@ -20,9 +22,15 @@ export class PipelineStack extends Stack {
       })
     });
 
+    new GitHubSourceCredentials(this, `NestAppGitHubCredentials`, {
+      accessToken: SecretValue.secretsManager('/NestApp', {
+        jsonField: 'github-oauth-token'
+      }),
+    });
+
     const prod = new PipelineAppStage(this, 'NestAppProd', {
       branchName: 'master'
-    })
+    });
 
     Tags.of(prod).add('environment', 'prod');
 

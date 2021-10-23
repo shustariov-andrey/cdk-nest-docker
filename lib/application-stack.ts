@@ -1,14 +1,6 @@
-import { CfnOutput, Construct, Duration, SecretValue, Stack, StackProps, Tags } from '@aws-cdk/core';
+import { CfnOutput, Construct, Duration, Stack, StackProps } from '@aws-cdk/core';
 import { Repository, TagStatus } from '@aws-cdk/aws-ecr';
-import {
-  BuildSpec,
-  EventAction,
-  FilterGroup,
-  GitHubSourceCredentials,
-  LinuxBuildImage,
-  Project,
-  Source
-} from '@aws-cdk/aws-codebuild';
+import { BuildSpec, EventAction, FilterGroup, LinuxBuildImage, Project, Source } from '@aws-cdk/aws-codebuild';
 import { DockerImageAsset } from '@aws-cdk/aws-ecr-assets';
 import * as path from 'path';
 import { DockerImageName, ECRDeployment } from 'cdk-ecr-deployment';
@@ -53,12 +45,6 @@ export class ApplicationStack extends Stack {
       dest: new DockerImageName(`${ecrRepository.repositoryUri}:latest`),
     });
 
-    new GitHubSourceCredentials(this, `${appName}GitHubCredentials`, {
-      accessToken: SecretValue.secretsManager('/NestApp', {
-        jsonField: 'github-oauth-token'
-      }),
-    });
-
     const gitHubSource = Source.gitHub({
       owner: gitOwner,
       repo: gitRepo,
@@ -68,7 +54,7 @@ export class ApplicationStack extends Stack {
       ],
     });
 
-    new Project(this, `${appName}BuildProject`, {
+    const project = new Project(this, `${appName}BuildProject`, {
       source: gitHubSource,
       environment: {
         buildImage: LinuxBuildImage.STANDARD_5_0,
@@ -109,7 +95,7 @@ export class ApplicationStack extends Stack {
       })
     });
 
-    Tags.of(this).add('project', appName);
+    ecrRepository.grantPullPush(project.role!);
 
     const vpc = new Vpc(this, `${appName}-Vpc`, {
       // cidr: vpcCidr,
