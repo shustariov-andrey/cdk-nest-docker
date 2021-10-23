@@ -69,7 +69,6 @@ export class ApplicationStack extends Stack {
     });
 
     new Project(this, `${appName}BuildProject`, {
-      projectName: `${appName}BuildProject`,
       source: gitHubSource,
       environment: {
         buildImage: LinuxBuildImage.STANDARD_5_0,
@@ -132,7 +131,6 @@ export class ApplicationStack extends Stack {
     });
 
     const taskRole = new Role(this, `${clusterName}TaskRole`, {
-      roleName: `${clusterName}TaskRole`,
       assumedBy: new ServicePrincipal('ecs-tasks.amazonaws.com')
     });
 
@@ -168,7 +166,6 @@ export class ApplicationStack extends Stack {
 
     const serviceName = `${appName}-Service`;
     const fargateService = new ApplicationLoadBalancedFargateService(this, serviceName, {
-      serviceName: serviceName,
       cluster,
       taskDefinition: taskDef,
       publicLoadBalancer: true,
@@ -204,7 +201,6 @@ export class ApplicationStack extends Stack {
     const buildAction = new CodeBuildAction({
       actionName: 'Build',
       project: new Project(this, `${appName}-ImageDefinitionsBuilder`, {
-        projectName: `${appName}-ImageDefinitionsBuilder`,
         environment: {
           buildImage: LinuxBuildImage.AMAZON_LINUX_2_3,
           privileged: false,
