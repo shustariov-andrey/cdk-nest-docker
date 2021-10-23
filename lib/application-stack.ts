@@ -116,11 +116,9 @@ export class ApplicationStack extends Stack {
       maxAzs: 3,
       natGateways: 0,
     });
-    Tags.of(vpc).add('Name', `${appName}-Vpc`);
 
     const clusterName = `${appName}-Cluster`;
     const cluster = new Cluster(this, clusterName, {
-      clusterName,
       vpc,
       containerInsights: true,
     });
