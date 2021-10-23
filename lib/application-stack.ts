@@ -227,7 +227,6 @@ export class ApplicationStack extends Stack {
 
     const pipelineName = `${serviceName}-DeployPipeline`;
     const pipeline = new Pipeline(this, pipelineName, {
-      pipelineName,
       crossAccountKeys: false,
       restartExecutionOnUpdate: false,
       stages: [{
