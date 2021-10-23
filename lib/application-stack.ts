@@ -31,13 +31,11 @@ export class ApplicationStack extends Stack {
     super(scope, id, props);
 
     const appName = 'NestApp';
-    const repoName = 'nest-app';
     const gitOwner = 'shustariov-andrey';
     const gitRepo = 'nest-docker-boilerplate';
     const branchName = props.branchName;
 
     const ecrRepository = new Repository(this, `${appName}EcrRepository`, {
-      repositoryName: repoName,
       lifecycleRules: [{
         maxImageAge: Duration.days(30),
         rulePriority: 1,
