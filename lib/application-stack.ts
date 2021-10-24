@@ -1,4 +1,4 @@
-import { CfnOutput, Construct, Duration, Stack, StackProps } from '@aws-cdk/core';
+import { Construct, Duration, Stack, StackProps } from '@aws-cdk/core';
 import { Repository, TagStatus } from '@aws-cdk/aws-ecr';
 import { BuildSpec, EventAction, FilterGroup, LinuxBuildImage, Project, Source } from '@aws-cdk/aws-codebuild';
 import { DockerImageAsset } from '@aws-cdk/aws-ecr-assets';
@@ -256,7 +256,5 @@ export class ApplicationStack extends Stack {
       }
     });
     eventRule.addTarget(new CodePipeline(pipeline));
-
-    new CfnOutput(this, `LoadBalancerDNS`, { value: fargateService.loadBalancer.loadBalancerDnsName });
   }
 }
